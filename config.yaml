@@ -1,0 +1,4 @@
+application:
+  notification_provider: email
+  enable_audit: true
+  audit_output: memory

@@ -1,0 +1,55 @@
+@startuml prakt-4-sequence
+
+!define PRIMARY_COLOR #E1F5FF
+!define SECONDARY_COLOR #FFF9C4
+
+title Диаграмма взаимодействия: Отправка уведомления и аудит
+
+== Сценарий: Отправка уведомления студенту ==
+
+participant "Client Code" as Client
+participant "NotificationService" as Service
+participant "Configuration" as Config
+participant "Auditor" as Auditor
+participant "File System" as FS
+
+Client -> Service: send_notification(\n"student@test.com",\n"req-001",\n"Your appeal")
+
+activate Service
+    Service -> Config: get('notification_provider')
+    activate Config
+    Config -> Config: return 'email'
+    deactivate Config
+
+    Service -> Config: get('enable_audit')
+    activate Config
+    Config -> Config: return True
+    deactivate Config
+
+    Note over Service: Имитирует отправку\nуведомления
+
+    alt enable_audit == True
+        Service -> Auditor: record_notification(\n"system",\n"student@test.com",\n"req-001",\n"email",\n"sent")
+        activate Auditor
+            Auditor -> Auditor: Create AuditRecord
+            Auditor -> Auditor: Add to _records list
+        deactivate Auditor
+    end
+
+    Service -> Service: return True
+deactivate Service
+
+Client <-- Service: success=True
+
+== Получение истории аудита ==
+
+Client -> Auditor: get_records()
+activate Auditor
+    Auditor -> Auditor: return copy of _records
+deactivate Auditor
+
+Client <-- Auditor: List[AuditRecord]
+
+Note over Client: Результат:\n1 запись об отправке\nстудентам с деталями
+
+@enduml

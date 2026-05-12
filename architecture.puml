@@ -1,0 +1,104 @@
+@startuml prakt-4-architecture
+
+!define PRIMARY_COLOR #E1F5FF
+!define SECONDARY_COLOR #FFF9C4
+
+skinparam backgroundColor #FAFAFA
+skinparam classBackgroundColor PRIMARY_COLOR
+skinparam classBorderColor #0277BD
+
+title Паттерн "Одиночка" vs Внедрение зависимостей
+
+package "Вариант 1: Классический Одиночка" {
+    class ConfigurationSingleton {
+        - _instance: ConfigurationSingleton
+        - _lock: Lock
+        - _config: dict
+        + {static} get_instance(): ConfigurationSingleton
+        + get(key, default=None): Any
+        + {static} reset(): void
+    }
+
+    class AuditorSingleton {
+        - _instance: AuditorSingleton
+        - _lock: Lock
+        - _records: List[AuditRecord]
+        + {static} get_instance(): AuditorSingleton
+        + record_notification(...): void
+        + get_records(): List[AuditRecord]
+        + {static} reset(): void
+    }
+
+    class NotificationServiceSingleton {
+        + send_notification(...): bool
+    }
+
+    NotificationServiceSingleton ..> ConfigurationSingleton : "обращается к\nглобальному доступу"
+    NotificationServiceSingleton ..> AuditorSingleton : "обращается к\nглобальному доступу"
+
+    note right of ConfigurationSingleton
+        Проблемы:
+        • Статический доступ везде
+        • Скрытые зависимости
+        • Утечка состояния между тестами
+        • Сложна подмена в тестах
+    end note
+}
+
+package "Вариант 2: Внедрение Зависимостей" {
+    class Configuration {
+        - _config: dict
+        + __init__(config_data: dict)
+        + get(key, default=None): Any
+        + {static} load_from_file(path): Configuration
+    }
+
+    class Auditor {
+        - _records: List[AuditRecord]
+        + record_notification(...): void
+        + get_records(): List[AuditRecord]
+    }
+
+    class NotificationServiceDI {
+        - _config: Configuration
+        - _auditor: Auditor
+        + __init__(config, auditor)
+        + send_notification(...): bool
+    }
+
+    class DIContainer {
+        - _singletons: dict
+        + register_singleton(name, instance): void
+        + get(name): Any
+    }
+
+    NotificationServiceDI --> Configuration : "явная\nзависимость"
+    NotificationServiceDI --> Auditor : "явная\nзависимость"
+    DIContainer --> Configuration : "управляет\nжизненным циклом"
+    DIContainer --> Auditor : "управляет\nжизненным циклом"
+    DIContainer --> NotificationServiceDI : "управляет\nжизненным циклом"
+
+    note right of NotificationServiceDI
+        Преимущества:
+        • Явные зависимости в конструкторе
+        • Легко подменять в тестах
+        • Естественная изоляция тестов
+        • Тестируемость при расширении
+    end note
+}
+
+package "Поддерживающие классы" {
+    class AuditRecord {
+        + sender: str
+        + recipient: str
+        + request_id: str
+        + channel: str
+        + status: str
+        + timestamp: datetime
+    }
+
+    ConfigurationSingleton --> "*" AuditRecord : contains
+    Auditor --> "*" AuditRecord : stores
+}
+
+@enduml
